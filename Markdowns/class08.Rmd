@@ -1,0 +1,27 @@
+---
+title: "Class 08"
+author: "Ryan Chaney"
+date: "2026-09-21"
+output:
+    html_document:
+    toc: TRUE
+    toc_float: true
+    number_section: true
+    code_download: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cincy Crashes
+
+```{r api_intro}
+httr2::request("https://data.cincinnati-oh.gov/resource/rvmt-pkmq.json") |>
+  httr2::req_url_query("$limit" = 5) |>
+  httr2::req_perform() |>
+  httr2::resp_body_string() |>
+  jsonlite::fromJSON() -> cincy_crashes
+```
+
