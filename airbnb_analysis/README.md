@@ -8,3 +8,7 @@ Course Topics:
 Phase I: Data Acquisition & Transformation
 Phase II: Data Visualization & Communication
 Phase III: Exploratory Data Mining
+##Skills
+- Git
+- R
+- Tableau
