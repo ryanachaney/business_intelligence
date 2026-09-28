@@ -1,0 +1,163 @@
+---
+title: "Assignment 6"
+author: "Ryan Chaney"
+date: "2026-09-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+db_path = if (file.exists("data/midwest_airbnb_extended.db")) {
+  "data/midwest_airbnb_extended.db"
+} else {
+  "../data/midwest_airbnb_extended.db"
+}
+
+con = DBI::dbConnect(RSQLite::SQLite(), db_path)
+listings     = DBI::dbReadTable(con, "listings") |> tibble::as_tibble()
+availability = DBI::dbReadTable(con, "availability_monthly") |> tibble::as_tibble()
+reviews      = DBI::dbReadTable(con, "reviews_monthly") |> tibble::as_tibble()
+DBI::dbDisconnect(con)
+```
+
+```{r}
+host_counts = listings |> 
+  dplyr::count(host_id, name = "host_listings_count")
+
+listings_t1 = listings |> 
+  dplyr::left_join(host_counts, by = "host_id")
+
+a1 = host_counts |> 
+  dplyr::filter(host_listings_count >= 10) |> 
+  nrow()
+
+a2 = listings_t1 |> 
+  dplyr::filter(city == "Chicago") |> 
+  dplyr::summarize(
+    pct = mean(host_listings_count >= 10) * 100
+  )
+
+a1
+a2
+```
+
+```{r}
+task2 = listings |> 
+  dplyr::filter(
+    room_type == "Entire home/apt",
+    accommodates >= 4,
+    number_of_reviews >= 10,
+    review_scores_rating >= 4.8
+  ) |> 
+  dplyr::mutate(price_per_person = price / accommodates) |> 
+  dplyr::group_by(city, neighbourhood) |> 
+  dplyr::filter(dplyr::n() >= 20) |> 
+  dplyr::summarize(
+    median_price_pp = median(price_per_person, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  dplyr::filter(city == "Columbus") |> 
+  dplyr::slice_min(median_price_pp, n = 1)
+
+task2
+```
+
+```{r}
+task3 = listings |> 
+  dplyr::group_by(city, room_type) |> 
+  dplyr::summarize(
+    dplyr::across(c(price, reviews_per_month, estimated_revenue_l365d), \(x) median(x, na.rm = TRUE)),
+    .groups = "drop"
+  ) |> 
+  dplyr::filter(city == "Twin Cities", room_type == "Entire home/apt")
+
+task3
+```
+
+```{r}
+task4 = listings |> 
+  dplyr::group_by(city) |> 
+  dplyr::arrange(dplyr::desc(estimated_revenue_l365d), .by_group = TRUE) |> 
+  dplyr::filter(dplyr::row_number() <= ceiling(0.10 * dplyr::n())) |> 
+  dplyr::summarize(
+    top10_revenue = sum(estimated_revenue_l365d, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  dplyr::left_join(
+    listings |> 
+      dplyr::group_by(city) |> 
+      dplyr::summarize(total_revenue = sum(estimated_revenue_l365d, na.rm = TRUE)),
+    by = "city"
+  ) |> 
+  dplyr::mutate(pct_top10 = (top10_revenue / total_revenue) * 100) |> 
+  dplyr::filter(city == "Columbus")
+
+task4
+```
+
+```{r}
+task5 = availability |> 
+  dplyr::filter(month == "2026-10") |> 
+  dplyr::right_join(
+    listings |> dplyr::filter(room_type == "Entire home/apt"),
+    by = "id"
+  ) |> 
+  dplyr::mutate(mostly_taken = nights_available < 0.5 * nights_in_month) |> 
+  dplyr::group_by(city) |> 
+  dplyr::summarize(
+    share_mostly_taken = mean(mostly_taken, na.rm = TRUE) * 100,
+    .groups = "drop"
+  )
+
+task5
+```
+
+```{r}
+task6 = reviews |> 
+  dplyr::filter(month >= "2025-07" & month <= "2026-06") |> 
+  dplyr::left_join(listings |> dplyr::select(id, city), by = "id") |> 
+  dplyr::group_by(city, month) |> 
+  dplyr::summarize(total_reviews = sum(reviews, na.rm = TRUE), .groups = "drop") |> 
+  dplyr::filter(city == "Twin Cities") |> 
+  dplyr::summarize(
+    busiest_month = month[which.max(total_reviews)],
+    ratio = max(total_reviews) / min(total_reviews)
+  )
+
+task6
+```
+
+```{r}
+task7 = listings |> 
+  dplyr::filter(
+    room_type == "Entire home/apt",
+    host_is_superhost %in% c("t", "f")
+  ) |> 
+  dplyr::group_by(city, host_is_superhost) |> 
+  dplyr::summarize(
+    median_price = median(price, na.rm = TRUE),
+    median_rating = median(review_scores_rating, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  dplyr::select(city, host_is_superhost, median_price) |> 
+  tidyr::pivot_wider(names_from = host_is_superhost, values_from = median_price) |> 
+  dplyr::mutate(superhost_premium = t - f)
+
+task7
+```
+
+```{r}
+lost_listings = listings |> 
+  dplyr::anti_join(availability, by = "id")
+
+a10 = nrow(lost_listings)
+
+city_losses = lost_listings |> 
+  dplyr::count(city) |> 
+  dplyr::slice_max(n, n = 1)
+
+a10
+city_losses
+```
+
