@@ -80,3 +80,64 @@ dreadnought_df = registry |>
 
 sum(dreadnought_df$value)
 ```
+
+
+## ISA 125 Extraction
+
+```{r isa125}
+chat = ellmer::chat_openai(
+  model = "gpt-5.6-luna"
+)
+
+isa125_courseblock = rvest::read_html("https://bulletin.miamioh.edu/courses-instruction/isa/") |>
+  rvest::html_elements("#sc_sccoursedescs > div:nth-child(1)") |>
+  rvest::html_text2()
+
+chat$chat_structured(
+  isa125_courseblock,
+  type = ellmer::type_object(
+    # code is the name of the first element in the returned sub-list
+    # type_string forces that element to be a type of chr
+    code = ellmer::type_string(
+      description = "The three letter abbreviation for the course and its number."
+    ),
+    name = ellmer::type_string(
+      description = "The title of the course without the three letter abbreviation and the number. For example,
+      Intro to Macroeconomics. Do not return a period after the name"
+      
+    ),
+    cr_hr = ellmer::type_integer(description = "The number of credits shown in parantheses after the course code and title")
+  )
+)
+
+```
+
+
+## All 50 ISA Courses
+
+```{r all_isa_courses}
+courses_vec = rvest::read_html("https://bulletin.miamioh.edu/courses-instruction/isa/") |>
+  rvest::html_elements(".courseblock") |> rvest::html_text2()
+
+course_list = as.list(courses_vec)
+type_course = ellmer::type_object(
+    # code is the name of the first element in the returned sub-list
+    # type_string forces that element to be a type of chr
+    code = ellmer::type_string(
+      description = "The three letter abbreviation for the course and its number."
+    ),
+    name = ellmer::type_string(
+      description = "The title of the course without the three letter abbreviation and the number. For example,
+      Intro to Macroeconomics. Do not return a period after the name"
+      
+    ),
+    cr_hr = ellmer::type_integer(description = "The number of credits shown in parantheses after the course code and title")
+  )
+
+isa_df = ellmer::parallel_chat_structured(
+  chat = chat, prompts = course_list, type = type_course,
+  inlcude_tokens = T, include_cost = T
+)
+
+```
+
